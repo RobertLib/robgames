@@ -1,12 +1,13 @@
 "use strict";
 
 (() => {
-  const SCREEN_WIDTH = 780;
-  const SCREEN_HEIGHT = 580;
+  const SCREEN_WIDTH = 800;
+  const SCREEN_HEIGHT = 600;
 
-  const TILE_SIZE = 20;
+  const TILE_SIZE = 30;
 
-  const MAP_1_PATTERN = `
+  const MAP_PATTERNS = [
+    `
 #######################################
 #    E                                #
 # # #### ##### # ##### # ##### #### # #
@@ -35,7 +36,15 @@
 # #    # #  #  #  # #  #  #  # #    # #
 # # #### ##### # ##### # ##### #### # #
 #                                E    #
-#######################################`;
+#######################################`,
+  ];
+
+  const mapRows = MAP_PATTERNS[0].split("\n");
+
+  mapRows.shift();
+
+  const mapWidth = mapRows[0].length;
+  const mapHeight = mapRows.length;
 
   /** @type {HTMLCanvasElement} */
   const canvas = document.getElementById("canvas");
@@ -60,6 +69,35 @@
     keys[event.code] = false;
   });
 
+  const camera = {
+    x: 0,
+    y: 0,
+    /**
+     * @param {number} targetX
+     * @param {number} targetY
+     */
+    update(targetX, targetY) {
+      this.x = targetX - SCREEN_WIDTH / 2;
+      this.y = targetY - SCREEN_HEIGHT / 2;
+
+      if (this.x < 0) {
+        this.x = 0;
+      }
+
+      if (this.x > mapWidth * TILE_SIZE - SCREEN_WIDTH) {
+        this.x = mapWidth * TILE_SIZE - SCREEN_WIDTH;
+      }
+
+      if (this.y < 0) {
+        this.y = 0;
+      }
+
+      if (this.y > mapHeight * TILE_SIZE - SCREEN_HEIGHT) {
+        this.y = mapHeight * TILE_SIZE - SCREEN_HEIGHT;
+      }
+    },
+  };
+
   /**
    * @param {number} x
    * @param {number} y
@@ -67,21 +105,39 @@
    * @param {number} h
    */
   function collisionWithMap(x, y, w, h) {
-    const onCol = Math.ceil(x / TILE_SIZE);
-    const onRow = Math.floor(y / TILE_SIZE);
+    let onCol = Math.ceil(x / TILE_SIZE);
+    let onRow = Math.ceil(y / TILE_SIZE);
+
+    const size = 1;
+
+    if (onCol - size < 0) {
+      onCol = size;
+    }
+
+    if (onCol + 1 + size > mapWidth) {
+      onCol = mapWidth - size - 1;
+    }
+
+    if (onRow - size < 0) {
+      onRow = size;
+    }
+
+    if (onRow + 1 + size > mapHeight) {
+      onRow = mapHeight - size - 1;
+    }
 
     for (const [rowIndex, row] of Object.entries(
-      MAP_1_PATTERN.split("\n").slice(onRow, onRow + 3)
+      mapRows.slice(onRow - size, onRow + 1 + size)
     )) {
       for (const [colIndex, col] of Object.entries(
-        row.split("").slice(onCol - 1, onCol + 2)
+        row.split("").slice(onCol - size, onCol + 1 + size)
       )) {
         if (col === "#") {
           if (
-            x + w > (colIndex - 1 + onCol) * TILE_SIZE &&
-            x < (colIndex - 1 + onCol) * TILE_SIZE + TILE_SIZE &&
-            y + h > (rowIndex - 1 + onRow) * TILE_SIZE &&
-            y < (rowIndex - 1 + onRow) * TILE_SIZE + TILE_SIZE
+            x + w > (colIndex - size + onCol) * TILE_SIZE &&
+            x < (colIndex - size + onCol) * TILE_SIZE + TILE_SIZE &&
+            y + h > (rowIndex - size + onRow) * TILE_SIZE &&
+            y < (rowIndex - size + onRow) * TILE_SIZE + TILE_SIZE
           ) {
             return true;
           }
@@ -96,10 +152,10 @@
   function coordinatesOnMap(char) {
     const out = [];
 
-    for (const [rowIndex, row] of Object.entries(MAP_1_PATTERN.split("\n"))) {
+    for (const [rowIndex, row] of Object.entries(mapRows)) {
       for (const [colIndex, col] of Object.entries(row.split(""))) {
         if (col === char) {
-          out.push({ x: colIndex - 0, y: rowIndex - 1 });
+          out.push({ x: parseInt(colIndex, 10), y: parseInt(rowIndex, 10) });
         }
       }
     }
@@ -107,14 +163,51 @@
     return out;
   }
 
-  function drawMap() {
-    for (const [rowIndex, row] of Object.entries(MAP_1_PATTERN.split("\n"))) {
-      for (const [colIndex, col] of Object.entries(row.split(""))) {
+  /**
+   * @param {number} targetX
+   * @param {number} targetY
+   */
+  function drawMap(targetX, targetY) {
+    let onCol = Math.ceil(targetX / TILE_SIZE);
+    let onRow = Math.ceil(targetY / TILE_SIZE);
+
+    const size = 13;
+
+    if (onCol - 1 - size < 0) {
+      onCol = size + 1;
+    }
+
+    if (onCol + size > mapWidth) {
+      onCol = mapWidth - size;
+    }
+
+    if (onRow - 1 - size < 0) {
+      onRow = size + 1;
+    }
+
+    if (onRow + size > mapHeight) {
+      onRow = mapHeight - size;
+    }
+
+    for (const [rowIndex, row] of Object.entries(
+      mapRows.slice(onRow - 1 - size, onRow + size)
+    )) {
+      for (const [colIndex, col] of Object.entries(
+        row.split("").slice(onCol - 1 - size, onCol + size)
+      )) {
         if (col === "#") {
-          ctx.fillStyle = "#000";
+          const xScale = colIndex / size;
+          const yScale = rowIndex / size;
+
+          ctx.fillStyle = `rgb(0 0 0 / ${
+            (xScale > 1 ? 2 - xScale : xScale) *
+              (yScale > 1 ? 2 - yScale : yScale) +
+            0.7
+          })`;
+
           ctx.fillRect(
-            colIndex * TILE_SIZE,
-            (rowIndex - 1) * TILE_SIZE,
+            (colIndex - 1 - size + onCol) * TILE_SIZE - camera.x,
+            (rowIndex - 1 - size + onRow) * TILE_SIZE - camera.y,
             TILE_SIZE,
             TILE_SIZE
           );
@@ -131,7 +224,7 @@
     xVel: 0,
     yVel: 0,
     radius: TILE_SIZE / 2,
-    speed: 150,
+    speed: 200,
     rect(xShift = 0, yShift = 0) {
       const radiusX = this.radius / (yShift === 0 ? 1 : 1.5);
       const radiusY = this.radius / (xShift === 0 ? 1 : 1.5);
@@ -189,7 +282,13 @@
     draw() {
       ctx.fillStyle = "#00f";
       ctx.beginPath();
-      ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+      ctx.arc(
+        this.x - camera.x,
+        this.y - camera.y,
+        this.radius,
+        0,
+        Math.PI * 2
+      );
       ctx.fill();
     },
   };
@@ -205,7 +304,7 @@
       this.xVel = 0;
       this.yVel = 0;
       this.radius = TILE_SIZE / 2;
-      this.speed = 150;
+      this.speed = 200;
     }
 
     rect(xShift = 0, yShift = 0) {
@@ -289,7 +388,13 @@
     draw() {
       ctx.fillStyle = "#f00";
       ctx.beginPath();
-      ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+      ctx.arc(
+        this.x - camera.x,
+        this.y - camera.y,
+        this.radius,
+        0,
+        Math.PI * 2
+      );
       ctx.fill();
     }
   }
@@ -312,10 +417,12 @@
       enemy.update();
     }
 
+    camera.update(player.x, player.y);
+
     // Draw
     ctx.clearRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
 
-    drawMap();
+    drawMap(player.x, player.y);
 
     player.draw();
 
