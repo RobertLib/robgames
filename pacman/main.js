@@ -9,7 +9,7 @@
   const MAP_PATTERNS = [
     `
 #######################################
-#    E                                #
+#    E                           E    #
 # # #### ##### # ##### # ##### #### # #
 # #    # #  #  #  # #  #  #  # #    # #
 # # ## # #  # ### # # ### #  # # ## # #
@@ -35,7 +35,7 @@
 # # ## # #  # ### # # ### #  # # ## # #
 # #    # #  #  #  # #  #  #  # #    # #
 # # #### ##### # ##### # ##### #### # #
-#                                E    #
+#    E                           E    #
 #######################################`,
   ];
 
@@ -225,6 +225,17 @@
     yVel: 0,
     radius: TILE_SIZE / 2,
     speed: 200,
+    /**
+     * @param {number} x
+     * @param {number} y
+     */
+    collisionWith(x, y) {
+      const a = x - this.x;
+      const b = y - this.y;
+      const c = Math.sqrt(a * a + b * b);
+
+      return Math.abs(c) < this.radius;
+    },
     rect(xShift = 0, yShift = 0) {
       const radiusX = this.radius / (yShift === 0 ? 1 : 1.5);
       const radiusY = this.radius / (xShift === 0 ? 1 : 1.5);
@@ -304,7 +315,10 @@
       this.xVel = 0;
       this.yVel = 0;
       this.radius = TILE_SIZE / 2;
-      this.speed = 200;
+      this.speed = 210;
+      /** @type {"left" | "right" | "up" | "down" | null} */
+      this.playersLastSeenDir = null;
+      this.playersLastSeenDirTimer = 0;
     }
 
     rect(xShift = 0, yShift = 0) {
@@ -319,7 +333,11 @@
       ];
     }
 
-    update() {
+    evaluatingNextDir() {
+      if (this.playersLastSeenDir) {
+        return;
+      }
+
       /** @type {("left" | "right" | "up" | "down")[]} */
       const nextDir = [];
 
@@ -365,6 +383,97 @@
           this.yVel = 1;
           break;
       }
+    }
+
+    /** @param {"left" | "right" | "up" | "down"} dir */
+    canSeePlayer(dir) {
+      const length = 10;
+
+      switch (dir) {
+        case "left":
+          for (
+            let x = this.x;
+            x > this.x - TILE_SIZE * length;
+            x -= TILE_SIZE
+          ) {
+            if (player.collisionWith(x, this.y)) {
+              return true;
+            }
+          }
+          break;
+        case "right":
+          for (
+            let x = this.x;
+            x < this.x + TILE_SIZE * length;
+            x += TILE_SIZE
+          ) {
+            if (player.collisionWith(x, this.y)) {
+              return true;
+            }
+          }
+          break;
+        case "up":
+          for (
+            let y = this.y;
+            y > this.y - TILE_SIZE * length;
+            y -= TILE_SIZE
+          ) {
+            if (player.collisionWith(this.x, y)) {
+              return true;
+            }
+          }
+          break;
+        case "down":
+          for (
+            let y = this.y;
+            y < this.y + TILE_SIZE * length;
+            y += TILE_SIZE
+          ) {
+            if (player.collisionWith(this.x, y)) {
+              return true;
+            }
+          }
+          break;
+      }
+
+      return false;
+    }
+
+    changingDirWhenSpottingPlayer() {
+      if (this.canSeePlayer("left")) {
+        this.xVel = -1;
+        this.playersLastSeenDir = "left";
+      }
+
+      if (this.canSeePlayer("right")) {
+        this.xVel = 1;
+        this.playersLastSeenDir = "right";
+      }
+
+      if (this.canSeePlayer("up")) {
+        this.yVel = -1;
+        this.playersLastSeenDir = "up";
+      }
+
+      if (this.canSeePlayer("down")) {
+        this.yVel = 1;
+        this.playersLastSeenDir = "down";
+      }
+
+      if (this.playersLastSeenDir) {
+        this.playersLastSeenDirTimer += dt;
+
+        if (this.playersLastSeenDirTimer > 1) {
+          this.playersLastSeenDir = null;
+          this.playersLastSeenDirTimer = 0;
+        }
+      }
+    }
+
+    update() {
+      this.evaluatingNextDir();
+
+      this.changingDirWhenSpottingPlayer();
 
       if (collisionWithMap(...this.rect(this.xVel * this.speed * dt, 0))) {
         this.x = Math.floor(this.x / TILE_SIZE) * TILE_SIZE + this.radius;
