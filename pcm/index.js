@@ -39,13 +39,6 @@
 #######################################`,
   ];
 
-  const mapRows = MAP_PATTERNS[0].split("\n");
-
-  mapRows.shift();
-
-  const mapWidth = mapRows[0].length;
-  const mapHeight = mapRows.length;
-
   /** @type {HTMLCanvasElement} */
   const canvas = document.getElementById("canvas");
 
@@ -69,173 +62,173 @@
     keys[event.code] = false;
   });
 
-  const camera = {
-    x: 0,
-    y: 0,
+  /**
+   * @param {number} a
+   * @param {number} b
+   * @param {number} t
+   */
+  function lerp(a, b, t) {
+    return (b - a) * t + a;
+  }
+
+  class Map {
+    constructor() {
+      const rows = MAP_PATTERNS[0].split("\n");
+
+      rows.shift();
+
+      this.width = rows[0].length;
+      this.height = rows.length;
+      this.rows = rows;
+      this.size = 14;
+    }
+
+    /**
+     * @param {number} x
+     * @param {number} y
+     * @param {number} w
+     * @param {number} h
+     */
+    collisionWith(x, y, w, h) {
+      let onCol = Math.ceil(x / TILE_SIZE);
+      let onRow = Math.ceil(y / TILE_SIZE);
+
+      const size = 1;
+
+      if (onCol - size < 0) {
+        onCol = size;
+      }
+
+      if (onCol + 1 + size > this.width) {
+        onCol = this.width - size - 1;
+      }
+
+      if (onRow - size < 0) {
+        onRow = size;
+      }
+
+      if (onRow + 1 + size > this.height) {
+        onRow = this.height - size - 1;
+      }
+
+      for (const [rowIndex, row] of Object.entries(
+        map.rows.slice(onRow - size, onRow + 1 + size)
+      )) {
+        for (const [colIndex, col] of Object.entries(
+          row.split("").slice(onCol - size, onCol + 1 + size)
+        )) {
+          if (col === "#") {
+            if (
+              x + w > (colIndex - size + onCol) * TILE_SIZE &&
+              x < (colIndex - size + onCol) * TILE_SIZE + TILE_SIZE &&
+              y + h > (rowIndex - size + onRow) * TILE_SIZE &&
+              y < (rowIndex - size + onRow) * TILE_SIZE + TILE_SIZE
+            ) {
+              return true;
+            }
+          }
+        }
+      }
+
+      return false;
+    }
+
+    /** @param {string} char */
+    coordinatesFor(char) {
+      const out = [];
+
+      for (const [rowIndex, row] of Object.entries(map.rows)) {
+        for (const [colIndex, col] of Object.entries(row.split(""))) {
+          if (col === char) {
+            out.push({ x: parseInt(colIndex, 10), y: parseInt(rowIndex, 10) });
+          }
+        }
+      }
+
+      return out;
+    }
+
     /**
      * @param {number} targetX
      * @param {number} targetY
      */
-    update(targetX, targetY) {
-      this.x = targetX - SCREEN_WIDTH / 2;
-      this.y = targetY - SCREEN_HEIGHT / 2;
+    draw(targetX, targetY) {
+      let onCol = Math.ceil(targetX / TILE_SIZE);
+      let onRow = Math.ceil(targetY / TILE_SIZE);
 
-      if (this.x < 0) {
-        this.x = 0;
+      if (onCol - 1 - this.size < 0) {
+        onCol = this.size + 1;
       }
 
-      if (this.x > mapWidth * TILE_SIZE - SCREEN_WIDTH) {
-        this.x = mapWidth * TILE_SIZE - SCREEN_WIDTH;
+      if (onCol + this.size > this.width) {
+        onCol = this.width - this.size;
       }
 
-      if (this.y < 0) {
-        this.y = 0;
+      if (onRow - 1 - this.size < 0) {
+        onRow = this.size + 1;
       }
 
-      if (this.y > mapHeight * TILE_SIZE - SCREEN_HEIGHT) {
-        this.y = mapHeight * TILE_SIZE - SCREEN_HEIGHT;
+      if (onRow + this.size > this.height) {
+        onRow = this.height - this.size;
       }
-    },
-  };
 
-  /**
-   * @param {number} x
-   * @param {number} y
-   * @param {number} w
-   * @param {number} h
-   */
-  function collisionWithMap(x, y, w, h) {
-    let onCol = Math.ceil(x / TILE_SIZE);
-    let onRow = Math.ceil(y / TILE_SIZE);
-
-    const size = 1;
-
-    if (onCol - size < 0) {
-      onCol = size;
-    }
-
-    if (onCol + 1 + size > mapWidth) {
-      onCol = mapWidth - size - 1;
-    }
-
-    if (onRow - size < 0) {
-      onRow = size;
-    }
-
-    if (onRow + 1 + size > mapHeight) {
-      onRow = mapHeight - size - 1;
-    }
-
-    for (const [rowIndex, row] of Object.entries(
-      mapRows.slice(onRow - size, onRow + 1 + size)
-    )) {
-      for (const [colIndex, col] of Object.entries(
-        row.split("").slice(onCol - size, onCol + 1 + size)
+      for (const [rowIndex, row] of Object.entries(
+        map.rows.slice(onRow - 1 - this.size, onRow + this.size)
       )) {
-        if (col === "#") {
-          if (
-            x + w > (colIndex - size + onCol) * TILE_SIZE &&
-            x < (colIndex - size + onCol) * TILE_SIZE + TILE_SIZE &&
-            y + h > (rowIndex - size + onRow) * TILE_SIZE &&
-            y < (rowIndex - size + onRow) * TILE_SIZE + TILE_SIZE
-          ) {
-            return true;
+        for (const [colIndex, col] of Object.entries(
+          row.split("").slice(onCol - 1 - this.size, onCol + this.size)
+        )) {
+          if (col === "#") {
+            const xScale = colIndex / this.size;
+            const yScale = rowIndex / this.size;
+
+            ctx.fillStyle = `rgb(0 0 0 / ${
+              (xScale > 1 ? 2 - xScale : xScale) *
+                (yScale > 1 ? 2 - yScale : yScale) +
+              0.7
+            })`;
+
+            ctx.fillRect(
+              (colIndex - 1 - this.size + onCol) * TILE_SIZE - camera.x,
+              (rowIndex - 1 - this.size + onRow) * TILE_SIZE - camera.y,
+              TILE_SIZE,
+              TILE_SIZE
+            );
           }
         }
       }
     }
-
-    return false;
   }
 
-  /** @param {string} char */
-  function coordinatesOnMap(char) {
-    const out = [];
+  const map = new Map();
 
-    for (const [rowIndex, row] of Object.entries(mapRows)) {
-      for (const [colIndex, col] of Object.entries(row.split(""))) {
-        if (col === char) {
-          out.push({ x: parseInt(colIndex, 10), y: parseInt(rowIndex, 10) });
-        }
-      }
+  const PLAYERS_LIFE_COUNT = 3;
+
+  class Player {
+    constructor() {
+      const { x, y } = map.coordinatesFor("P")[0];
+
+      this.x = x * TILE_SIZE + TILE_SIZE / 2;
+      this.y = y * TILE_SIZE + TILE_SIZE / 2;
+      this.xVel = 0;
+      this.yVel = 0;
+      this.radius = TILE_SIZE / 2;
+      this.speed = 200;
+      this.lives = PLAYERS_LIFE_COUNT;
     }
 
-    return out;
-  }
-
-  /**
-   * @param {number} targetX
-   * @param {number} targetY
-   */
-  function drawMap(targetX, targetY) {
-    let onCol = Math.ceil(targetX / TILE_SIZE);
-    let onRow = Math.ceil(targetY / TILE_SIZE);
-
-    const size = 13;
-
-    if (onCol - 1 - size < 0) {
-      onCol = size + 1;
-    }
-
-    if (onCol + size > mapWidth) {
-      onCol = mapWidth - size;
-    }
-
-    if (onRow - 1 - size < 0) {
-      onRow = size + 1;
-    }
-
-    if (onRow + size > mapHeight) {
-      onRow = mapHeight - size;
-    }
-
-    for (const [rowIndex, row] of Object.entries(
-      mapRows.slice(onRow - 1 - size, onRow + size)
-    )) {
-      for (const [colIndex, col] of Object.entries(
-        row.split("").slice(onCol - 1 - size, onCol + size)
-      )) {
-        if (col === "#") {
-          const xScale = colIndex / size;
-          const yScale = rowIndex / size;
-
-          ctx.fillStyle = `rgb(0 0 0 / ${
-            (xScale > 1 ? 2 - xScale : xScale) *
-              (yScale > 1 ? 2 - yScale : yScale) +
-            0.7
-          })`;
-
-          ctx.fillRect(
-            (colIndex - 1 - size + onCol) * TILE_SIZE - camera.x,
-            (rowIndex - 1 - size + onRow) * TILE_SIZE - camera.y,
-            TILE_SIZE,
-            TILE_SIZE
-          );
-        }
-      }
-    }
-  }
-
-  const playerCoordinate = coordinatesOnMap("P")[0];
-
-  const player = {
-    x: playerCoordinate.x * TILE_SIZE + TILE_SIZE / 2,
-    y: playerCoordinate.y * TILE_SIZE + TILE_SIZE / 2,
-    xVel: 0,
-    yVel: 0,
-    radius: TILE_SIZE / 2,
-    speed: 200,
     /**
      * @param {number} x
      * @param {number} y
      */
-    collisionWith(x, y) {
+    collisionWith(x, y, radius) {
       const a = x - this.x;
       const b = y - this.y;
       const c = Math.sqrt(a * a + b * b);
 
-      return Math.abs(c) < this.radius;
-    },
+      return Math.abs(c) < radius;
+    }
+
     rect(xShift = 0, yShift = 0) {
       const radiusX = this.radius / (yShift === 0 ? 1 : 1.5);
       const radiusY = this.radius / (xShift === 0 ? 1 : 1.5);
@@ -246,38 +239,56 @@
         radiusX * 2,
         radiusY * 2,
       ];
-    },
+    }
+
+    resetPosition() {
+      const { x, y } = map.coordinatesFor("P")[0];
+
+      this.x = x * TILE_SIZE + TILE_SIZE / 2;
+      this.y = y * TILE_SIZE + TILE_SIZE / 2;
+      this.xVel = 0;
+      this.yVel = 0;
+    }
+
+    takeLife() {
+      if (this.lives > 0) {
+        this.lives--;
+
+        this.resetPosition();
+      }
+    }
+
     update() {
       if (
         keys["ArrowLeft"] &&
-        !collisionWithMap(...this.rect(-this.speed * dt, 0))
+        !map.collisionWith(...this.rect(-this.speed * dt, 0))
       ) {
         this.xVel = -1;
       } else if (
         keys["ArrowRight"] &&
-        !collisionWithMap(...this.rect(this.speed * dt, 0))
+        !map.collisionWith(...this.rect(this.speed * dt, 0))
       ) {
         this.xVel = 1;
       }
 
       if (
         keys["ArrowUp"] &&
-        !collisionWithMap(...this.rect(0, -this.speed * dt))
+        !map.collisionWith(...this.rect(0, -this.speed * dt))
       ) {
         this.yVel = -1;
       } else if (
         keys["ArrowDown"] &&
-        !collisionWithMap(...this.rect(0, this.speed * dt))
+        !map.collisionWith(...this.rect(0, this.speed * dt))
       ) {
         this.yVel = 1;
       }
 
-      if (collisionWithMap(...this.rect(this.xVel * this.speed * dt, 0))) {
+      if (map.collisionWith(...this.rect(this.xVel * this.speed * dt, 0))) {
         this.x = Math.floor(this.x / TILE_SIZE) * TILE_SIZE + this.radius;
         this.xVel = 0;
       }
 
-      if (collisionWithMap(...this.rect(0, this.yVel * this.speed * dt))) {
+      if (map.collisionWith(...this.rect(0, this.yVel * this.speed * dt))) {
         this.y = Math.floor(this.y / TILE_SIZE) * TILE_SIZE + this.radius;
         this.yVel = 0;
       }
@@ -289,7 +300,8 @@
         this.x += moveX;
         this.y += moveY;
       }
-    },
+    }
+
     draw() {
       ctx.fillStyle = "#00f";
       ctx.beginPath();
@@ -301,8 +313,48 @@
         Math.PI * 2
       );
       ctx.fill();
-    },
-  };
+    }
+  }
+
+  const player = new Player();
+
+  class Camera {
+    /**
+     * @param {number} targetX
+     * @param {number} targetY
+     */
+    constructor(targetX, targetY) {
+      this.x = targetX - SCREEN_WIDTH / 2;
+      this.y = targetY - SCREEN_HEIGHT / 2;
+    }
+
+    /**
+     * @param {number} targetX
+     * @param {number} targetY
+     */
+    update(targetX, targetY) {
+      this.x = lerp(this.x, targetX - SCREEN_WIDTH / 2, 7 * dt);
+      this.y = lerp(this.y, targetY - SCREEN_HEIGHT / 2, 7 * dt);
+
+      if (this.x < 0) {
+        this.x = 0;
+      }
+
+      if (this.x > map.width * TILE_SIZE - SCREEN_WIDTH) {
+        this.x = map.width * TILE_SIZE - SCREEN_WIDTH;
+      }
+
+      if (this.y < 0) {
+        this.y = 0;
+      }
+
+      if (this.y > map.height * TILE_SIZE - SCREEN_HEIGHT) {
+        this.y = map.height * TILE_SIZE - SCREEN_HEIGHT;
+      }
+    }
+  }
+
+  const camera = new Camera(player.x, player.y);
 
   class Enemy {
     /**
@@ -343,28 +395,28 @@
 
       if (
         this.xVel !== 1 &&
-        !collisionWithMap(...this.rect(-this.speed * dt, 0))
+        !map.collisionWith(...this.rect(-this.speed * dt, 0))
       ) {
         nextDir.push("left");
       }
 
       if (
         this.xVel !== -1 &&
-        !collisionWithMap(...this.rect(this.speed * dt, 0))
+        !map.collisionWith(...this.rect(this.speed * dt, 0))
       ) {
         nextDir.push("right");
       }
 
       if (
         this.yVel !== 1 &&
-        !collisionWithMap(...this.rect(0, -this.speed * dt))
+        !map.collisionWith(...this.rect(0, -this.speed * dt))
       ) {
         nextDir.push("up");
       }
 
       if (
         this.yVel !== -1 &&
-        !collisionWithMap(...this.rect(0, this.speed * dt))
+        !map.collisionWith(...this.rect(0, this.speed * dt))
       ) {
         nextDir.push("down");
       }
@@ -396,7 +448,7 @@
             x > this.x - TILE_SIZE * length;
             x -= TILE_SIZE
           ) {
-            if (player.collisionWith(x, this.y)) {
+            if (player.collisionWith(x, this.y, this.radius)) {
               return true;
             }
           }
@@ -407,7 +459,7 @@
             x < this.x + TILE_SIZE * length;
             x += TILE_SIZE
           ) {
-            if (player.collisionWith(x, this.y)) {
+            if (player.collisionWith(x, this.y, this.radius)) {
               return true;
             }
           }
@@ -418,7 +470,7 @@
             y > this.y - TILE_SIZE * length;
             y -= TILE_SIZE
           ) {
-            if (player.collisionWith(this.x, y)) {
+            if (player.collisionWith(this.x, y, this.radius)) {
               return true;
             }
           }
@@ -429,7 +481,7 @@
             y < this.y + TILE_SIZE * length;
             y += TILE_SIZE
           ) {
-            if (player.collisionWith(this.x, y)) {
+            if (player.collisionWith(this.x, y, this.radius)) {
               return true;
             }
           }
@@ -475,14 +527,18 @@
 
       this.changingDirWhenSpottingPlayer();
 
-      if (collisionWithMap(...this.rect(this.xVel * this.speed * dt, 0))) {
+      if (map.collisionWith(...this.rect(this.xVel * this.speed * dt, 0))) {
         this.x = Math.floor(this.x / TILE_SIZE) * TILE_SIZE + this.radius;
         this.xVel = 0;
       }
 
-      if (collisionWithMap(...this.rect(0, this.yVel * this.speed * dt))) {
+      if (map.collisionWith(...this.rect(0, this.yVel * this.speed * dt))) {
         this.y = Math.floor(this.y / TILE_SIZE) * TILE_SIZE + this.radius;
         this.yVel = 0;
+      }
+
+      if (player.collisionWith(this.x, this.y, this.radius)) {
+        player.takeLife();
       }
 
       const moveX = this.xVel * this.speed * dt;
@@ -511,27 +567,48 @@
   /** @type {Enemy[]} */
   const enemies = [];
 
-  for (const { x, y } of coordinatesOnMap("E")) {
+  for (const { x, y } of map.coordinatesFor("E")) {
     enemies.push(new Enemy(x * TILE_SIZE, y * TILE_SIZE));
   }
 
-  function main() {
+  class StatusBar {
+    draw() {
+      for (let i = 0; i < player.lives; i++) {
+        ctx.fillStyle = "#00f";
+        ctx.strokeStyle = "#fff";
+        ctx.beginPath();
+        ctx.arc(
+          SCREEN_WIDTH - 25 * i - 20,
+          20,
+          player.radius / 1.5,
+          0,
+          Math.PI * 2
+        );
+        ctx.fill();
+        ctx.stroke();
+      }
+    }
+  }
+
+  const statusBar = new StatusBar();
+
+  function gameLoop() {
     currentTime = Date.now();
     dt = (currentTime - lastTime) / 1000;
 
     // Update
     player.update();
 
+    camera.update(player.x, player.y);
+
     for (const enemy of enemies) {
       enemy.update();
     }
 
-    camera.update(player.x, player.y);
-
     // Draw
     ctx.clearRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
 
-    drawMap(player.x, player.y);
+    map.draw(player.x, player.y);
 
     player.draw();
 
@@ -539,10 +616,12 @@
       enemy.draw();
     }
 
-    requestAnimationFrame(main);
+    statusBar.draw();
+
+    requestAnimationFrame(gameLoop);
 
     lastTime = currentTime;
   }
 
-  requestAnimationFrame(main);
+  requestAnimationFrame(gameLoop);
 })();
