@@ -62,6 +62,8 @@
     keys[event.code] = false;
   });
 
+  let pause = false;
+
   /**
    * @param {number} a
    * @param {number} b
@@ -215,6 +217,7 @@
       this.radius = TILE_SIZE / 2;
       this.speed = 200;
       this.lives = PLAYERS_LIFE_COUNT;
+      this.isGameOver = false;
     }
 
     /**
@@ -251,14 +254,22 @@
     }
 
     takeLife() {
-      if (this.lives > 0) {
-        this.lives--;
+      this.lives--;
 
+      if (this.lives > 0) {
         this.resetPosition();
+      } else {
+        pause = true;
+
+        this.isGameOver = true;
       }
     }
 
     update() {
+      if (pause) {
+        return;
+      }
+
       if (
         keys["ArrowLeft"] &&
         !map.collisionWith(...this.rect(-this.speed * dt, 0))
@@ -316,7 +327,7 @@
     }
   }
 
-  const player = new Player();
+  let player = new Player();
 
   class Camera {
     /**
@@ -523,6 +534,10 @@
     }
 
     update() {
+      if (pause) {
+        return;
+      }
+
       this.evaluatingNextDir();
 
       this.changingDirWhenSpottingPlayer();
@@ -564,12 +579,30 @@
     }
   }
 
-  /** @type {Enemy[]} */
-  const enemies = [];
+  class Enemies {
+    constructor() {
+      /** @type {Enemy[]} */
+      this.enemies = [];
 
-  for (const { x, y } of map.coordinatesFor("E")) {
-    enemies.push(new Enemy(x * TILE_SIZE, y * TILE_SIZE));
+      for (const { x, y } of map.coordinatesFor("E")) {
+        this.enemies.push(new Enemy(x * TILE_SIZE, y * TILE_SIZE));
+      }
+    }
+
+    update() {
+      for (const enemy of this.enemies) {
+        enemy.update();
+      }
+    }
+
+    draw() {
+      for (const enemy of this.enemies) {
+        enemy.draw();
+      }
+    }
   }
+
+  let enemies = new Enemies();
 
   class StatusBar {
     draw() {
@@ -592,31 +625,56 @@
 
   const statusBar = new StatusBar();
 
+  class GameOver {
+    update() {
+      if (!player.isGameOver) {
+        return;
+      }
+
+      if (keys["Space"] || keys["Enter"]) {
+        pause = false;
+
+        player = new Player();
+        enemies = new Enemies();
+      }
+    }
+
+    draw() {
+      if (!player.isGameOver) {
+        return;
+      }
+
+      ctx.fillStyle = "rgba(0, 0, 0, 0.75)";
+      ctx.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+
+      ctx.font = "60px sans-serif";
+      ctx.fillStyle = "#fff";
+      ctx.textAlign = "center";
+      ctx.fillText("GAME OVER", SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2);
+    }
+  }
+
+  const gameOver = new GameOver();
+
   function gameLoop() {
     currentTime = Date.now();
     dt = (currentTime - lastTime) / 1000;
 
     // Update
     player.update();
-
     camera.update(player.x, player.y);
-
-    for (const enemy of enemies) {
-      enemy.update();
-    }
+    enemies.update();
+    gameOver.update();
 
     // Draw
-    ctx.clearRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
 
     map.draw(player.x, player.y);
-
     player.draw();
-
-    for (const enemy of enemies) {
-      enemy.draw();
-    }
-
+    enemies.draw();
     statusBar.draw();
+    gameOver.draw();
 
     requestAnimationFrame(gameLoop);
 
