@@ -62,6 +62,44 @@
     keys[event.code] = false;
   });
 
+  const controlArrows = document.querySelector("#control .arrows");
+
+  controlArrows.addEventListener("touchstart", (event) => {
+    event.preventDefault();
+  });
+
+  for (const controlArrow of /** @type {HTMLButtonElement[]} */ (
+    controlArrows.children
+  )) {
+    const eventCode = `Arrow${
+      controlArrow.className.charAt(0).toUpperCase() +
+      controlArrow.className.slice(1)
+    }`;
+
+    controlArrow.addEventListener("touchstart", (event) => {
+      event.preventDefault();
+
+      keys[eventCode] = true;
+    });
+
+    controlArrow.addEventListener("touchend", () => {
+      keys[eventCode] = false;
+    });
+  }
+
+  /** @type {HTMLButtonElement | null} */
+  const controlAction = document.querySelector("#control .action");
+
+  controlAction.addEventListener("touchstart", (event) => {
+    event.preventDefault();
+
+    keys["Space"] = true;
+  });
+
+  controlAction.addEventListener("touchend", () => {
+    keys["Space"] = false;
+  });
+
   let pause = false;
 
   /**
