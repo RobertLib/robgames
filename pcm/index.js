@@ -257,6 +257,8 @@
       /** @type {"left" | "right" | "up" | "down" | null} */
       this.nextDir = null;
       this.lives = PLAYERS_LIFE_COUNT;
+      this.immortality = false;
+      this.immortalityTimer = 0;
       this.isGameOver = false;
     }
 
@@ -265,6 +267,10 @@
      * @param {number} y
      */
     collisionWith(x, y, radius) {
+      if (this.immortality) {
+        return;
+      }
+
       const a = x - this.x;
       const b = y - this.y;
       const c = Math.sqrt(a * a + b * b);
@@ -298,6 +304,8 @@
 
       if (this.lives > 0) {
         this.resetPosition();
+
+        this.immortality = true;
       } else {
         pause = true;
 
@@ -359,10 +367,19 @@
         this.x += moveX;
         this.y += moveY;
       }
+
+      if (this.immortality) {
+        this.immortalityTimer += dt;
+
+        if (this.immortalityTimer > 3) {
+          this.immortality = false;
+          this.immortalityTimer = 0;
+        }
+      }
     }
 
     draw() {
-      ctx.fillStyle = "#00f";
+      ctx.fillStyle = `rgba(0, 0, 255, ${this.immortality ? 0.5 : 1})`;
       ctx.beginPath();
       ctx.arc(
         this.x - camera.x,
