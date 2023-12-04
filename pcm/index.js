@@ -254,6 +254,8 @@
       this.yVel = 0;
       this.radius = TILE_SIZE / 2;
       this.speed = 200;
+      /** @type {"left" | "right" | "up" | "down" | null} */
+      this.nextDir = null;
       this.lives = PLAYERS_LIFE_COUNT;
       this.isGameOver = false;
     }
@@ -308,28 +310,36 @@
         return;
       }
 
-      if (
-        keys["ArrowLeft"] &&
-        !map.collisionWith(...this.rect(-this.speed * dt, 0))
-      ) {
-        this.xVel = -1;
-      } else if (
-        keys["ArrowRight"] &&
-        !map.collisionWith(...this.rect(this.speed * dt, 0))
-      ) {
-        this.xVel = 1;
+      if (keys["ArrowLeft"] || this.nextDir === "left") {
+        this.nextDir = "left";
+
+        if (!map.collisionWith(...this.rect(-this.speed * dt, 0))) {
+          this.xVel = -1;
+        }
       }
 
-      if (
-        keys["ArrowUp"] &&
-        !map.collisionWith(...this.rect(0, -this.speed * dt))
-      ) {
-        this.yVel = -1;
-      } else if (
-        keys["ArrowDown"] &&
-        !map.collisionWith(...this.rect(0, this.speed * dt))
-      ) {
-        this.yVel = 1;
+      if (keys["ArrowRight"] || this.nextDir === "right") {
+        this.nextDir = "right";
+
+        if (!map.collisionWith(...this.rect(this.speed * dt, 0))) {
+          this.xVel = 1;
+        }
+      }
+
+      if (keys["ArrowUp"] || this.nextDir === "up") {
+        this.nextDir = "up";
+
+        if (!map.collisionWith(...this.rect(0, -this.speed * dt))) {
+          this.yVel = -1;
+        }
+      }
+
+      if (keys["ArrowDown"] || this.nextDir === "down") {
+        this.nextDir = "down";
+
+        if (!map.collisionWith(...this.rect(0, this.speed * dt))) {
+          this.yVel = 1;
+        }
       }
 
       if (map.collisionWith(...this.rect(this.xVel * this.speed * dt, 0))) {
