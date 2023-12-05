@@ -389,6 +389,17 @@
         Math.PI * 2
       );
       ctx.fill();
+
+      ctx.fillStyle = "#fff";
+      ctx.beginPath();
+      ctx.arc(
+        this.x + (this.radius / 3) * this.xVel - camera.x,
+        this.y + (this.radius / 3) * this.yVel - camera.y,
+        this.radius / 4,
+        0,
+        Math.PI * 2
+      );
+      ctx.fill();
     }
   }
 
@@ -637,6 +648,17 @@
         this.x - camera.x,
         this.y - camera.y,
         this.radius,
+        0,
+        Math.PI * 2
+      );
+      ctx.fill();
+
+      ctx.fillStyle = "#fff";
+      ctx.beginPath();
+      ctx.arc(
+        this.x + (this.radius / 3) * this.xVel - camera.x,
+        this.y + (this.radius / 3) * this.yVel - camera.y,
+        this.radius / 4,
         0,
         Math.PI * 2
       );
