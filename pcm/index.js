@@ -93,11 +93,11 @@
   controlAction.addEventListener("touchstart", (event) => {
     event.preventDefault();
 
-    keys["Space"] = true;
+    keys.Space = true;
   });
 
   controlAction.addEventListener("touchend", () => {
-    keys["Space"] = false;
+    keys.Space = false;
   });
 
   let pause = false;
@@ -242,6 +242,58 @@
 
   const map = new Map();
 
+  class Bullet {
+    /**
+     * @param {number} x
+     * @param {number} y
+     */
+    constructor(x, y, xVel = 0, yVel = 0) {
+      this.x = x;
+      this.y = y;
+      this.xVel = xVel;
+      this.yVel = yVel;
+      this.radius = 4;
+      this.speed = 400;
+    }
+
+    rect() {
+      return [
+        this.x - this.radius,
+        this.y - this.radius,
+        this.radius * 2,
+        this.radius * 2,
+      ];
+    }
+
+    update() {
+      this.x += this.xVel * this.speed * dt;
+      this.y += this.yVel * this.speed * dt;
+
+      if (map.collisionWith(...this.rect())) {
+        player.bullets = player.bullets.filter((bullet) => bullet !== this);
+      }
+
+      const enemy = enemies.collisionWith(this.x, this.y, this.radius);
+
+      if (enemy) {
+        enemies.kill(enemy);
+      }
+    }
+
+    draw() {
+      ctx.fillStyle = "#00f";
+      ctx.beginPath();
+      ctx.arc(
+        this.x - camera.x,
+        this.y - camera.y,
+        this.radius,
+        0,
+        Math.PI * 2
+      );
+      ctx.fill();
+    }
+  }
+
   const PLAYERS_LIFE_COUNT = 3;
 
   class Player {
@@ -259,12 +311,17 @@
       this.lives = PLAYERS_LIFE_COUNT;
       this.immortality = false;
       this.immortalityTimer = 0;
+      this.canShoot = true;
+      this.canShootTimer = 0;
+      /** @type {Bullet[]} */
+      this.bullets = [];
       this.isGameOver = false;
     }
 
     /**
      * @param {number} x
      * @param {number} y
+     * @param {number} radius
      */
     collisionWith(x, y, radius) {
       if (this.immortality) {
@@ -275,7 +332,7 @@
       const b = y - this.y;
       const c = Math.sqrt(a * a + b * b);
 
-      return Math.abs(c) < radius;
+      return Math.abs(c) < radius + this.radius;
     }
 
     rect(xShift = 0, yShift = 0) {
@@ -299,6 +356,16 @@
       this.yVel = 0;
     }
 
+    shoot() {
+      if (!this.canShoot || (this.xVel === 0 && this.yVel === 0)) {
+        return;
+      }
+
+      this.canShoot = false;
+
+      this.bullets.push(new Bullet(this.x, this.y, this.xVel, this.yVel));
+    }
+
     takeLife() {
       this.lives--;
 
@@ -318,7 +385,7 @@
         return;
       }
 
-      if (keys["ArrowLeft"] || this.nextDir === "left") {
+      if (keys.ArrowLeft || this.nextDir === "left") {
         this.nextDir = "left";
 
         if (!map.collisionWith(...this.rect(-this.speed * dt, 0))) {
@@ -326,7 +393,7 @@
         }
       }
 
-      if (keys["ArrowRight"] || this.nextDir === "right") {
+      if (keys.ArrowRight || this.nextDir === "right") {
         this.nextDir = "right";
 
         if (!map.collisionWith(...this.rect(this.speed * dt, 0))) {
@@ -334,7 +401,7 @@
         }
       }
 
-      if (keys["ArrowUp"] || this.nextDir === "up") {
+      if (keys.ArrowUp || this.nextDir === "up") {
         this.nextDir = "up";
 
         if (!map.collisionWith(...this.rect(0, -this.speed * dt))) {
@@ -342,7 +409,7 @@
         }
       }
 
-      if (keys["ArrowDown"] || this.nextDir === "down") {
+      if (keys.ArrowDown || this.nextDir === "down") {
         this.nextDir = "down";
 
         if (!map.collisionWith(...this.rect(0, this.speed * dt))) {
@@ -376,6 +443,23 @@
           this.immortalityTimer = 0;
         }
       }
+
+      if (!this.canShoot) {
+        this.canShootTimer += dt;
+
+        if (this.canShootTimer > 0.3) {
+          this.canShoot = true;
+          this.canShootTimer = 0;
+        }
+      }
+
+      if (keys.Space) {
+        this.shoot();
+      }
+
+      for (const bullet of this.bullets) {
+        bullet.update();
+      }
     }
 
     draw() {
@@ -400,6 +484,10 @@
         Math.PI * 2
       );
       ctx.fill();
+
+      for (const bullet of this.bullets) {
+        bullet.draw();
+      }
     }
   }
 
@@ -458,6 +546,19 @@
       /** @type {"left" | "right" | "up" | "down" | null} */
       this.playersLastSeenDir = null;
       this.playersLastSeenDirTimer = 0;
+    }
+
+    /**
+     * @param {number} x
+     * @param {number} y
+     * @param {number} radius
+     */
+    collisionWith(x, y, radius) {
+      const a = x - this.x;
+      const b = y - this.y;
+      const c = Math.sqrt(a * a + b * b);
+
+      return Math.abs(c) < radius + this.radius;
     }
 
     rect(xShift = 0, yShift = 0) {
@@ -676,6 +777,26 @@
       }
     }
 
+    /**
+     * @param {number} x
+     * @param {number} y
+     * @param {number} radius
+     */
+    collisionWith(x, y, radius) {
+      for (const enemy of this.enemies) {
+        if (enemy.collisionWith(x, y, radius)) {
+          return enemy;
+        }
+      }
+
+      return null;
+    }
+
+    /** @param {Enemy} enemy */
+    kill(enemy) {
+      this.enemies = this.enemies.filter((item) => item !== enemy);
+    }
+
     update() {
       for (const enemy of this.enemies) {
         enemy.update();
@@ -718,7 +839,7 @@
         return;
       }
 
-      if (keys["Space"] || keys["Enter"]) {
+      if (keys.Space || keys.Enter) {
         pause = false;
 
         player = new Player();
