@@ -222,17 +222,26 @@
             const xScale = colIndex / this.size;
             const yScale = rowIndex / this.size;
 
-            ctx.fillStyle = `rgb(0 0 0 / ${
+            ctx.fillStyle = `rgb(255 255 255 / ${
               (xScale > 1 ? 2 - xScale : xScale) *
                 (yScale > 1 ? 2 - yScale : yScale) +
               0.7
             })`;
+
+            ctx.strokeStyle = "#000";
 
             ctx.fillRect(
               (colIndex - 1 - this.size + onCol) * TILE_SIZE - camera.x,
               (rowIndex - 1 - this.size + onRow) * TILE_SIZE - camera.y,
               TILE_SIZE,
               TILE_SIZE
+            );
+
+            ctx.strokeRect(
+              (colIndex - 1 - this.size + onCol) * TILE_SIZE - camera.x + 4,
+              (rowIndex - 1 - this.size + onRow) * TILE_SIZE - camera.y + 4,
+              TILE_SIZE - 8,
+              TILE_SIZE - 8
             );
           }
         }
@@ -243,15 +252,13 @@
   const map = new Map();
 
   class Bullet {
-    /**
-     * @param {number} x
-     * @param {number} y
-     */
-    constructor(x, y, xVel = 0, yVel = 0) {
-      this.x = x;
-      this.y = y;
-      this.xVel = xVel;
-      this.yVel = yVel;
+    /** @param {Player | Enemy} parent */
+    constructor(parent) {
+      this.parent = parent;
+      this.x = parent.x;
+      this.y = parent.y;
+      this.xVel = parent.xVel;
+      this.yVel = parent.yVel;
       this.radius = 4;
       this.speed = 400;
     }
@@ -270,18 +277,28 @@
       this.y += this.yVel * this.speed * dt;
 
       if (map.collisionWith(...this.rect())) {
-        player.bullets = player.bullets.filter((bullet) => bullet !== this);
+        this.parent.bullets = this.parent.bullets.filter(
+          (bullet) => bullet !== this
+        );
       }
 
-      const enemy = enemies.collisionWith(this.x, this.y, this.radius);
+      if (this.parent instanceof Player) {
+        const enemy = enemies.collisionWith(this.x, this.y, this.radius);
 
-      if (enemy) {
-        enemies.kill(enemy);
+        if (enemy) {
+          enemies.kill(enemy);
+        }
+      }
+
+      if (this.parent instanceof Enemy) {
+        if (player.collisionWith(this.x, this.y, this.radius)) {
+          player.takeLife();
+        }
       }
     }
 
     draw() {
-      ctx.fillStyle = "#00f";
+      ctx.fillStyle = "#fff";
       ctx.beginPath();
       ctx.arc(
         this.x - camera.x,
@@ -363,7 +380,7 @@
 
       this.canShoot = false;
 
-      this.bullets.push(new Bullet(this.x, this.y, this.xVel, this.yVel));
+      this.bullets.push(new Bullet(this));
     }
 
     takeLife() {
@@ -463,7 +480,7 @@
     }
 
     draw() {
-      ctx.fillStyle = `rgba(0, 0, 255, ${this.immortality ? 0.5 : 1})`;
+      ctx.fillStyle = `rgba(80, 80, 255, ${this.immortality ? 0.5 : 1})`;
       ctx.beginPath();
       ctx.arc(
         this.x - camera.x,
@@ -546,6 +563,10 @@
       /** @type {"left" | "right" | "up" | "down" | null} */
       this.playersLastSeenDir = null;
       this.playersLastSeenDirTimer = 0;
+      this.canShoot = true;
+      this.canShootTimer = 0;
+      /** @type {Bullet[]} */
+      this.bullets = [];
     }
 
     /**
@@ -561,13 +582,13 @@
       return Math.abs(c) < radius + this.radius;
     }
 
-    rect(xShift = 0, yShift = 0) {
+    rect(xShift = 0, yShift = 0, x = this.x, y = this.y) {
       const radiusX = this.radius / (yShift === 0 ? 1 : 1.5);
       const radiusY = this.radius / (xShift === 0 ? 1 : 1.5);
 
       return [
-        this.x - radiusX + xShift,
-        this.y - radiusY + yShift,
+        x - radiusX + xShift,
+        y - radiusY + yShift,
         radiusX * 2,
         radiusY * 2,
       ];
@@ -636,6 +657,10 @@
             x > this.x - TILE_SIZE * length;
             x -= TILE_SIZE
           ) {
+            if (map.collisionWith(...this.rect(0, 0, x))) {
+              return false;
+            }
+
             if (player.collisionWith(x, this.y, this.radius)) {
               return true;
             }
@@ -647,6 +672,10 @@
             x < this.x + TILE_SIZE * length;
             x += TILE_SIZE
           ) {
+            if (map.collisionWith(...this.rect(0, 0, x))) {
+              return false;
+            }
+
             if (player.collisionWith(x, this.y, this.radius)) {
               return true;
             }
@@ -658,6 +687,10 @@
             y > this.y - TILE_SIZE * length;
             y -= TILE_SIZE
           ) {
+            if (map.collisionWith(...this.rect(0, 0, 0, y))) {
+              return false;
+            }
+
             if (player.collisionWith(this.x, y, this.radius)) {
               return true;
             }
@@ -669,6 +702,10 @@
             y < this.y + TILE_SIZE * length;
             y += TILE_SIZE
           ) {
+            if (map.collisionWith(...this.rect(0, 0, 0, y))) {
+              return false;
+            }
+
             if (player.collisionWith(this.x, y, this.radius)) {
               return true;
             }
@@ -680,24 +717,34 @@
     }
 
     changingDirWhenSpottingPlayer() {
+      let spottingPlayer = false;
+
       if (this.canSeePlayer("left")) {
         this.xVel = -1;
         this.playersLastSeenDir = "left";
+
+        spottingPlayer = true;
       }
 
       if (this.canSeePlayer("right")) {
         this.xVel = 1;
         this.playersLastSeenDir = "right";
+
+        spottingPlayer = true;
       }
 
       if (this.canSeePlayer("up")) {
         this.yVel = -1;
         this.playersLastSeenDir = "up";
+
+        spottingPlayer = true;
       }
 
       if (this.canSeePlayer("down")) {
         this.yVel = 1;
         this.playersLastSeenDir = "down";
+
+        spottingPlayer = true;
       }
 
       if (this.playersLastSeenDir) {
@@ -708,6 +755,18 @@
           this.playersLastSeenDirTimer = 0;
         }
       }
+
+      return spottingPlayer;
+    }
+
+    shoot() {
+      if (!this.canShoot || (this.xVel === 0 && this.yVel === 0)) {
+        return;
+      }
+
+      this.canShoot = false;
+
+      this.bullets.push(new Bullet(this));
     }
 
     update() {
@@ -717,7 +776,9 @@
 
       this.evaluatingNextDir();
 
-      this.changingDirWhenSpottingPlayer();
+      if (this.changingDirWhenSpottingPlayer()) {
+        this.shoot();
+      }
 
       if (map.collisionWith(...this.rect(this.xVel * this.speed * dt, 0))) {
         this.x = Math.floor(this.x / TILE_SIZE) * TILE_SIZE + this.radius;
@@ -739,6 +800,19 @@
       if (Math.abs(moveX) < TILE_SIZE && Math.abs(moveY) < TILE_SIZE) {
         this.x += moveX;
         this.y += moveY;
+      }
+
+      if (!this.canShoot) {
+        this.canShootTimer += dt;
+
+        if (this.canShootTimer > 0.3) {
+          this.canShoot = true;
+          this.canShootTimer = 0;
+        }
+      }
+
+      for (const bullet of this.bullets) {
+        bullet.update();
       }
     }
 
@@ -764,6 +838,10 @@
         Math.PI * 2
       );
       ctx.fill();
+
+      for (const bullet of this.bullets) {
+        bullet.draw();
+      }
     }
   }
 
@@ -815,7 +893,7 @@
   class StatusBar {
     draw() {
       for (let i = 0; i < player.lives; i++) {
-        ctx.fillStyle = "#00f";
+        ctx.fillStyle = "#55f";
         ctx.strokeStyle = "#fff";
         ctx.beginPath();
         ctx.arc(
@@ -875,8 +953,7 @@
     gameOver.update();
 
     // Draw
-    ctx.fillStyle = "#fff";
-    ctx.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+    ctx.clearRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
 
     map.draw(player.x, player.y);
     player.draw();
