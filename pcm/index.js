@@ -330,6 +330,8 @@
       this.immortalityTimer = 0;
       this.canShoot = true;
       this.canShootTimer = 0;
+      this.isDying = false;
+      this.isDyingTimer = 0;
       /** @type {Bullet[]} */
       this.bullets = [];
       this.isGameOver = false;
@@ -341,7 +343,7 @@
      * @param {number} radius
      */
     collisionWith(x, y, radius) {
-      if (this.immortality) {
+      if (this.immortality || this.isDying) {
         return;
       }
 
@@ -371,6 +373,7 @@
       this.y = y * TILE_SIZE + TILE_SIZE / 2;
       this.xVel = 0;
       this.yVel = 0;
+      this.nextDir = null;
     }
 
     shoot() {
@@ -384,12 +387,14 @@
     }
 
     takeLife() {
+      if (this.isDying) {
+        return;
+      }
+
       this.lives--;
 
       if (this.lives > 0) {
-        this.resetPosition();
-
-        this.immortality = true;
+        this.isDying = true;
       } else {
         pause = true;
 
@@ -402,54 +407,60 @@
         return;
       }
 
-      if (keys.ArrowLeft || this.nextDir === "left") {
-        this.nextDir = "left";
+      if (!this.isDying) {
+        if (keys.ArrowLeft || this.nextDir === "left") {
+          this.nextDir = "left";
 
-        if (!map.collisionWith(...this.rect(-this.speed * dt, 0))) {
-          this.xVel = -1;
+          if (!map.collisionWith(...this.rect(-this.speed * dt, 0))) {
+            this.xVel = -1;
+          }
         }
-      }
 
-      if (keys.ArrowRight || this.nextDir === "right") {
-        this.nextDir = "right";
+        if (keys.ArrowRight || this.nextDir === "right") {
+          this.nextDir = "right";
 
-        if (!map.collisionWith(...this.rect(this.speed * dt, 0))) {
-          this.xVel = 1;
+          if (!map.collisionWith(...this.rect(this.speed * dt, 0))) {
+            this.xVel = 1;
+          }
         }
-      }
 
-      if (keys.ArrowUp || this.nextDir === "up") {
-        this.nextDir = "up";
+        if (keys.ArrowUp || this.nextDir === "up") {
+          this.nextDir = "up";
 
-        if (!map.collisionWith(...this.rect(0, -this.speed * dt))) {
-          this.yVel = -1;
+          if (!map.collisionWith(...this.rect(0, -this.speed * dt))) {
+            this.yVel = -1;
+          }
         }
-      }
 
-      if (keys.ArrowDown || this.nextDir === "down") {
-        this.nextDir = "down";
+        if (keys.ArrowDown || this.nextDir === "down") {
+          this.nextDir = "down";
 
-        if (!map.collisionWith(...this.rect(0, this.speed * dt))) {
-          this.yVel = 1;
+          if (!map.collisionWith(...this.rect(0, this.speed * dt))) {
+            this.yVel = 1;
+          }
         }
-      }
 
-      if (map.collisionWith(...this.rect(this.xVel * this.speed * dt, 0))) {
-        this.x = Math.floor(this.x / TILE_SIZE) * TILE_SIZE + this.radius;
-        this.xVel = 0;
-      }
+        if (map.collisionWith(...this.rect(this.xVel * this.speed * dt, 0))) {
+          this.x = Math.floor(this.x / TILE_SIZE) * TILE_SIZE + this.radius;
+          this.xVel = 0;
+        }
 
-      if (map.collisionWith(...this.rect(0, this.yVel * this.speed * dt))) {
-        this.y = Math.floor(this.y / TILE_SIZE) * TILE_SIZE + this.radius;
-        this.yVel = 0;
-      }
+        if (map.collisionWith(...this.rect(0, this.yVel * this.speed * dt))) {
+          this.y = Math.floor(this.y / TILE_SIZE) * TILE_SIZE + this.radius;
+          this.yVel = 0;
+        }
 
-      const moveX = this.xVel * this.speed * dt;
-      const moveY = this.yVel * this.speed * dt;
+        const moveX = this.xVel * this.speed * dt;
+        const moveY = this.yVel * this.speed * dt;
 
-      if (Math.abs(moveX) < TILE_SIZE && Math.abs(moveY) < TILE_SIZE) {
-        this.x += moveX;
-        this.y += moveY;
+        if (Math.abs(moveX) < TILE_SIZE && Math.abs(moveY) < TILE_SIZE) {
+          this.x += moveX;
+          this.y += moveY;
+        }
+
+        if (keys.Space) {
+          this.shoot();
+        }
       }
 
       if (this.immortality) {
@@ -470,8 +481,17 @@
         }
       }
 
-      if (keys.Space) {
-        this.shoot();
+      if (this.isDying) {
+        this.isDyingTimer += dt;
+
+        if (this.isDyingTimer > 1) {
+          this.isDying = false;
+          this.isDyingTimer = 0;
+
+          this.resetPosition();
+
+          this.immortality = true;
+        }
       }
 
       for (const bullet of this.bullets) {
@@ -480,15 +500,13 @@
     }
 
     draw() {
+      const endAngle = this.isDying
+        ? Math.PI * 2 - Math.PI * 2 * this.isDyingTimer
+        : Math.PI * 2;
+
       ctx.fillStyle = `rgba(80, 80, 255, ${this.immortality ? 0.5 : 1})`;
       ctx.beginPath();
-      ctx.arc(
-        this.x - camera.x,
-        this.y - camera.y,
-        this.radius,
-        0,
-        Math.PI * 2
-      );
+      ctx.arc(this.x - camera.x, this.y - camera.y, this.radius, 0, endAngle);
       ctx.fill();
 
       ctx.fillStyle = "#fff";
@@ -498,7 +516,7 @@
         this.y + (this.radius / 3) * this.yVel - camera.y,
         this.radius / 4,
         0,
-        Math.PI * 2
+        endAngle
       );
       ctx.fill();
 
